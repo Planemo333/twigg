@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Hand-Controlled Spline Scene</title>
 
-  <!-- MediaPipe -->
+  <!-- MediaPipe Hands & Camera Utils -->
   <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
 
@@ -65,11 +65,12 @@
         if (results.multiHandLandmarks.length > 0) {
           const landmarks = results.multiHandLandmarks[0];
 
-          const rawX = (1 - landmarks[8].x - 0.5) * window.innerWidth;
-          const rawY = (landmarks[8].y - 0.5) * window.innerHeight;
+          // Swap axes to account for -90° camera rotation
+          const rotatedX = (landmarks[8].y - 0.5) * window.innerWidth;
+          const rotatedY = -(landmarks[8].x - 0.5) * window.innerHeight;
 
-          lastX = lastX * smoothingFactor + rawX * (1 - smoothingFactor);
-          lastY = lastY * smoothingFactor + rawY * (1 - smoothingFactor);
+          lastX = lastX * smoothingFactor + rotatedX * (1 - smoothingFactor);
+          lastY = lastY * smoothingFactor + rotatedY * (1 - smoothingFactor);
 
           if (sphere) {
             const sceneWidth = window.innerWidth * 1.5;
@@ -81,7 +82,7 @@
             sphere.position.y = -posY;
             sphere.position.x = 0;
 
-            // Scale with distance between thumb and index
+            // Scale with distance between thumb and index finger
             const distance = Math.hypot(
               landmarks[8].x - landmarks[4].x,
               landmarks[8].y - landmarks[4].y
@@ -101,10 +102,10 @@
           rotatedCtx.save();
           rotatedCtx.clearRect(0, 0, rotatedCanvas.width, rotatedCanvas.height);
 
-          // Rotate and flip to match portrait
+          // Rotate -90° and flip for selfie-like view
           rotatedCtx.translate(rotatedCanvas.width / 2, rotatedCanvas.height / 2);
           rotatedCtx.rotate(-Math.PI / 2);
-          rotatedCtx.scale(1, -1); // mirror image (like a front-facing selfie cam)
+          rotatedCtx.scale(1, -1); // flip vertically
 
           rotatedCtx.drawImage(
             video,
@@ -126,7 +127,7 @@
         .then(() => {
           console.log("✅ Camera started and hand tracking initialized");
 
-          // Dynamically set canvas size based on video dimensions
+          // Dynamically update canvas size
           video.addEventListener('loadedmetadata', () => {
             rotatedCanvas.width = video.videoHeight;
             rotatedCanvas.height = video.videoWidth;
@@ -135,7 +136,7 @@
         })
         .catch((err) => console.error("❌ Camera failed to start:", err));
 
-      // Optional: fallback mouse interaction
+      // Optional: mouse fallback
       const canvas = document.getElementById('spline-canvas');
       canvas.addEventListener('mousemove', (e) => {
         if (sphere) {
