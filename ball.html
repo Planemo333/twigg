@@ -5,11 +5,11 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Hand-Controlled Spline Scene</title>
 
-  <!-- Load MediaPipe Hands & Camera Utils -->
+  <!-- MediaPipe -->
   <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
 
-  <!-- Load Spline Runtime -->
+  <!-- Spline Runtime -->
   <script type="module">
     import { Application } from 'https://unpkg.com/@splinetool/runtime@1.0.21/build/runtime.js';
 
@@ -65,7 +65,6 @@
         if (results.multiHandLandmarks.length > 0) {
           const landmarks = results.multiHandLandmarks[0];
 
-          // Use the index fingertip (landmark 8)
           const rawX = (1 - landmarks[8].x - 0.5) * window.innerWidth;
           const rawY = (landmarks[8].y - 0.5) * window.innerHeight;
 
@@ -99,12 +98,22 @@
 
       const camera = new window.Camera(video, {
         onFrame: async () => {
-          // Rotate the video frame 90 degrees (landscape → portrait)
           rotatedCtx.save();
           rotatedCtx.clearRect(0, 0, rotatedCanvas.width, rotatedCanvas.height);
+
+          // Rotate and flip to match portrait
           rotatedCtx.translate(rotatedCanvas.width / 2, rotatedCanvas.height / 2);
           rotatedCtx.rotate(-Math.PI / 2);
-          rotatedCtx.drawImage(video, -video.videoHeight / 2, -video.videoWidth / 2);
+          rotatedCtx.scale(1, -1); // mirror image (like a front-facing selfie cam)
+
+          rotatedCtx.drawImage(
+            video,
+            -video.videoWidth / 2,
+            -video.videoHeight / 2,
+            video.videoWidth,
+            video.videoHeight
+          );
+
           rotatedCtx.restore();
 
           await hands.send({ image: rotatedCanvas });
@@ -114,7 +123,16 @@
       });
 
       camera.start()
-        .then(() => console.log("✅ Camera started and hand tracking initialized"))
+        .then(() => {
+          console.log("✅ Camera started and hand tracking initialized");
+
+          // Dynamically set canvas size based on video dimensions
+          video.addEventListener('loadedmetadata', () => {
+            rotatedCanvas.width = video.videoHeight;
+            rotatedCanvas.height = video.videoWidth;
+            console.log(`📐 Rotated canvas size: ${rotatedCanvas.width}x${rotatedCanvas.height}`);
+          });
+        })
         .catch((err) => console.error("❌ Camera failed to start:", err));
 
       // Optional: fallback mouse interaction
