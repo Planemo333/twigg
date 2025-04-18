@@ -25,7 +25,13 @@
       // Request camera access
       try {
         const stream = await navigator.mediaDevices.getUserMedia({
-          video: { width: { ideal: 640 }, height: { ideal: 480 }, aspectRatio: 480/640, frameRate: { ideal: 15 } }
+          video: { 
+            width: { ideal: 640 }, 
+            height: { ideal: 480 }, 
+            aspectRatio: { ideal: 480/640 }, 
+            frameRate: { ideal: 15 },
+            facingMode: "user" // Ensure front-facing camera
+          }
         });
         document.getElementById('video').srcObject = stream;
         console.log("Camera access granted");
@@ -48,10 +54,12 @@
 
       let isLooking = false;
       let stateTimeout = null;
+      const debugOverlay = document.getElementById('debug-overlay');
 
       faceMesh.onResults(results => {
         if (!results.multiFaceLandmarks[0]) {
           console.log("No face detected");
+          debugOverlay.style.backgroundColor = 'rgba(255, 0, 0, 0.5)'; // Red when no face
           return;
         }
         console.log("Face detected");
@@ -62,20 +70,26 @@
           return;
         }
 
-        // Estimate head orientation (yaw/pitch)
+        // Log raw landmarks
         const landmarks = results.multiFaceLandmarks[0];
         const nose = landmarks[1]; // Nose tip
         const leftEye = landmarks[33]; // Left eye outer
         const rightEye = landmarks[263]; // Right eye outer
+        console.log("Raw landmarks:", {
+          nose: { x: nose.x.toFixed(2), y: nose.y.toFixed(2), z: nose.z.toFixed(2) },
+          leftEye: { x: leftEye.x.toFixed(2), y: leftEye.y.toFixed(2), z: leftEye.z.toFixed(2) },
+          rightEye: { x: rightEye.x.toFixed(2), y: rightEye.y.toFixed(2), z: rightEye.z.toFixed(2) }
+        });
 
-        // Adjust for portrait (-90deg rotation)
+        // Estimate head orientation (yaw/pitch)
         const yaw = Math.atan2(rightEye.y - leftEye.y, rightEye.x - leftEye.x) * (180 / Math.PI);
         const pitch = Math.atan2(nose.z - (leftEye.z + rightEye.z) / 2, nose.y - (leftEye.y + rightEye.y) / 2) * (180 / Math.PI);
         console.log(`Yaw: ${yaw.toFixed(2)}°, Pitch: ${pitch.toFixed(2)}°`);
 
-        // Check if looking at screen (±10°)
-        const lookingAtScreen = Math.abs(yaw) < 10 && Math.abs(pitch) < 10;
+        // Check if looking at screen (±15° for wider range)
+        const lookingAtScreen = Math.abs(yaw) < 15 && Math.abs(pitch) < 15;
         console.log("Looking at screen:", lookingAtScreen);
+        debugOverlay.style.backgroundColor = lookingAtScreen ? 'rgba(0, 255, 0, 0.5)' : 'rgba(255, 0, 0, 0.5)';
 
         // Update Spline state only on change
         if (lookingAtScreen !== isLooking) {
@@ -119,10 +133,20 @@
     body { margin: 0; overflow: hidden; display: flex; justify-content: center; align-items: center; height: 100vh; }
     #spline-canvas { width: 100%; height: 100%; }
     #video { display: none; transform: rotate(-90deg); width: 480px; height: 640px; }
+    #debug-overlay { 
+      position: absolute; 
+      top: 10px; 
+      left: 10px; 
+      width: 50px; 
+      height: 50px; 
+      pointer-events: none; 
+      z-index: 10; 
+    }
   </style>
 </head>
 <body>
   <canvas id="spline-canvas"></canvas>
   <video id="video" autoplay playsinline></video>
+  <div id="debug-overlay"></div>
 </body>
 </html>
