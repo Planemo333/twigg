@@ -16,13 +16,12 @@
       try {
         await splineApp.load('https://prod.spline.design/abU-ltf0N5uCFYyP/scene.splinecode');
         console.log("Spline scene loaded successfully");
-        // Try 'lep' first, then 'Lep'
-        lep = splineApp.findObjectByName('lep') || splineApp.findObjectByName('Lep');
-        console.log("Lep object found:", lep ? "Yes" : "No, lep/Lep is undefined");
+        lep = splineApp.findObjectByName('lep');
+        console.log("Lep object found:", lep ? "Yes" : "No, lep is undefined");
         console.log("All objects in scene:", splineApp.getAllObjects().map(obj => obj.name));
         if (lep) {
           console.log("Initial lep scale:", lep.scale);
-          console.log("Lep properties:", { scale: lep.scale, position: lep.position });
+          console.log("Lep properties:", { scale: lep.scale, position: lep.position, rotation: lep.rotation });
         }
       } catch (err) {
         console.error("Failed to load Spline scene:", err);
@@ -33,9 +32,9 @@
       try {
         const stream = await navigator.mediaDevices.getUserMedia({
           video: {
-            width: { ideal: 640 },
-            height: { ideal: 480 },
-            aspectRatio: { ideal: 480/640 },
+            width: { ideal: 320 }, // Reduced for performance
+            height: { ideal: 240 },
+            aspectRatio: { ideal: 240/320 },
             frameRate: { ideal: 15 },
             facingMode: "user"
           }
@@ -56,14 +55,15 @@
       faces.setOptions({
         maxNumFaces: 1,
         refineLandmarks: false,
-        minDetectionConfidence: 0.1, // Lowered for maximum sensitivity
-        minTrackingConfidence: 0.5
+        minDetectionConfidence: 0.1,
+        minTrackingConfidence: 0.1 // Lowered for better toggling
       });
 
       let faceDetected = false;
       let lastUpdate = Date.now();
       const debugOverlay = document.getElementById('debug-overlay');
-      let originalScale = { x: 1, y: 1, z: 1 }; // Adjust if lep's default scale differs
+      let originalScale = 4.986124499245237; // Updated to lep's actual scale
+      let camera;
 
       faces.onResults((results) => {
         if (!lep) {
@@ -72,7 +72,7 @@
         }
 
         const isFaceDetected = !!results.multiFaceLandmarks[0];
-        console.log("Face detected:", isFaceDetected);
+        console.log("Face detected:", isFaceDetected, "Landmarks:", results.multiFaceLandmarks[0] ? "Present" : "Absent");
         console.log("Setting overlay color:", isFaceDetected ? "green" : "red");
         debugOverlay.style.backgroundColor = isFaceDetected ? 'rgba(0, 255, 0, 0.5)' : 'rgba(255, 0, 0, 0.5)';
         lastUpdate = Date.now();
@@ -80,42 +80,53 @@
         if (isFaceDetected !== faceDetected) {
           faceDetected = isFaceDetected;
           if (faceDetected) {
-            lep.setScale({ x: 0.2, y: 0.2, z: 0.2 });
-            lep.position.x = 100; // Test position change
-            console.log("Set scale: { x: 0.2, y: 0.2, z: 0.2 }, Position x:", lep.position.x);
+            lep.scale.x = 0.2;
+            lep.scale.y = 0.2;
+            lep.scale.z = 0.2;
+            lep.position.x = 100;
+            lep.rotation.y = Math.PI / 4;
+            console.log("Set scale: { x: 0.2, y: 0.2, z: 0.2 }, Position x:", lep.position.x, "Rotation y:", lep.rotation.y);
           } else {
-            lep.setScale(originalScale);
+            lep.scale.x = originalScale;
+            lep.scale.y = originalScale;
+            lep.scale.z = originalScale;
             lep.position.x = 0;
-            console.log("Restored scale:", originalScale, "Position x:", lep.position.x);
+            lep.rotation.y = 0;
+            console.log("Restored scale:", originalScale, "Position x:", lep.position.x, "Rotation y:", lep.rotation.y);
           }
           console.log("Current lep scale:", lep.scale);
         }
       });
 
-      // Timeout to reset overlay if no updates
-      setInterval(() => {
-        if (Date.now() - lastUpdate > 2000 && faceDetected) {
-          console.log("No face updates for 2s, resetting");
-          faceDetected = false;
-          debugOverlay.style.backgroundColor = 'rgba(255, 0, 0, 0.5)';
-          if (lep) {
-            lep.setScale(originalScale);
-            lep.position.x = 0;
-            console.log("Reset scale:", originalScale, "Position x:", lep.position.x);
-          }
-        }
-      }, 1000);
-
       const video = document.getElementById('video');
-      const camera = new window.Camera(video, {
+      camera = new window.Camera(video, {
         onFrame: async () => await faces.send({ image: video }),
-        width: 640,
-        height: 480
+        width: 320,
+        height: 240
       });
 
       camera.start()
         .then(() => console.log("Camera started"))
         .catch((err) => console.error("Camera failed:", err));
+
+      // Reset if no updates
+      setInterval(() => {
+        if (Date.now() - lastUpdate > 1000 && faceDetected) {
+          console.log("No face updates for 1s, resetting");
+          faceDetected = false;
+          debugOverlay.style.backgroundColor = 'rgba(255, 0, 0, 0.5)';
+          if (lep) {
+            lep.scale.x = originalScale;
+            lep.scale.y = originalScale;
+            lep.scale.z = originalScale;
+            lep.position.x = 0;
+            lep.rotation.y = 0;
+            console.log("Reset scale:", originalScale, "Position x:", lep.position.x, "Rotation y:", lep.rotation.y);
+          }
+          camera.stop();
+          camera.start();
+        }
+      }, 500);
     }
 
     window.onload = async function () {
@@ -129,7 +140,7 @@
   <style>
     body { margin: 0; overflow: hidden; display: flex; justify-content: center; align-items: center; height: 100vh; }
     #spline-canvas { width: 100%; height: 100%; display: block; }
-    #video { display: none; transform: rotate(-90deg); width: 480px; height: 640px; }
+    #video { display: none; transform: rotate(-90deg); width: 240px; height: 320px; }
     #debug-overlay { 
       position: absolute; 
       top: 10px; 
