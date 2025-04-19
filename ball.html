@@ -19,6 +19,9 @@
         lep = splineApp.findObjectByName('lep');
         console.log("Lep object found:", lep ? "Yes" : "No, lep is undefined");
         console.log("All objects in scene:", splineApp.getAllObjects().map(obj => obj.name));
+        if (lep) {
+          console.log("Initial lep scale:", lep.scale);
+        }
       } catch (err) {
         console.error("Failed to load Spline scene:", err);
       }
@@ -71,7 +74,8 @@
           if (isClose) {
             isClose = false;
             lep.setScale(originalScale);
-            console.log("Restored scale:", originalScale);
+            lep.position.x = 0; // Reset position
+            console.log("Restored scale:", originalScale, "Position x:", lep.position.x);
           }
           return;
         }
@@ -83,19 +87,23 @@
         const faceWidth = Math.abs(rightEye.x - leftEye.x);
         console.log(`Face width: ${faceWidth.toFixed(2)}`);
 
-        const isFaceClose = faceWidth > 0.3; // Threshold for "close"
+        const isFaceClose = faceWidth > 0.25; // Lowered threshold
         console.log("Face is close:", isFaceClose);
+        console.log("Setting overlay color:", isFaceClose ? "green" : "red");
         debugOverlay.style.backgroundColor = isFaceClose ? 'rgba(0, 255, 0, 0.5)' : 'rgba(255, 0, 0, 0.5)';
 
         if (isFaceClose !== isClose) {
           isClose = isFaceClose;
           if (isClose) {
             lep.setScale({ x: 0, y: 0, z: 0 });
-            console.log("Set scale: { x: 0, y: 0, z: 0 }");
+            lep.position.x = 100; // Test position change
+            console.log("Set scale: { x: 0, y: 0, z: 0 }, Position x:", lep.position.x);
           } else {
             lep.setScale(originalScale);
-            console.log("Restored scale:", originalScale);
+            lep.position.x = 0;
+            console.log("Restored scale:", originalScale, "Position x:", lep.position.x);
           }
+          console.log("Current lep scale:", lep.scale);
         }
       });
 
