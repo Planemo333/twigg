@@ -16,11 +16,13 @@
       try {
         await splineApp.load('https://prod.spline.design/abU-ltf0N5uCFYyP/scene.splinecode');
         console.log("Spline scene loaded successfully");
-        lep = splineApp.findObjectByName('lep');
-        console.log("Lep object found:", lep ? "Yes" : "No, lep is undefined");
+        // Try 'lep' first, then 'Lep'
+        lep = splineApp.findObjectByName('lep') || splineApp.findObjectByName('Lep');
+        console.log("Lep object found:", lep ? "Yes" : "No, lep/Lep is undefined");
         console.log("All objects in scene:", splineApp.getAllObjects().map(obj => obj.name));
         if (lep) {
           console.log("Initial lep scale:", lep.scale);
+          console.log("Lep properties:", { scale: lep.scale, position: lep.position });
         }
       } catch (err) {
         console.error("Failed to load Spline scene:", err);
@@ -54,11 +56,12 @@
       faces.setOptions({
         maxNumFaces: 1,
         refineLandmarks: false,
-        minDetectionConfidence: 0.2, // Lowered for easier detection
+        minDetectionConfidence: 0.1, // Lowered for maximum sensitivity
         minTrackingConfidence: 0.5
       });
 
       let faceDetected = false;
+      let lastUpdate = Date.now();
       const debugOverlay = document.getElementById('debug-overlay');
       let originalScale = { x: 1, y: 1, z: 1 }; // Adjust if lep's default scale differs
 
@@ -72,19 +75,36 @@
         console.log("Face detected:", isFaceDetected);
         console.log("Setting overlay color:", isFaceDetected ? "green" : "red");
         debugOverlay.style.backgroundColor = isFaceDetected ? 'rgba(0, 255, 0, 0.5)' : 'rgba(255, 0, 0, 0.5)';
+        lastUpdate = Date.now();
 
         if (isFaceDetected !== faceDetected) {
           faceDetected = isFaceDetected;
           if (faceDetected) {
             lep.setScale({ x: 0.2, y: 0.2, z: 0.2 });
-            console.log("Set scale: { x: 0.2, y: 0.2, z: 0.2 }");
+            lep.position.x = 100; // Test position change
+            console.log("Set scale: { x: 0.2, y: 0.2, z: 0.2 }, Position x:", lep.position.x);
           } else {
             lep.setScale(originalScale);
-            console.log("Restored scale:", originalScale);
+            lep.position.x = 0;
+            console.log("Restored scale:", originalScale, "Position x:", lep.position.x);
           }
           console.log("Current lep scale:", lep.scale);
         }
       });
+
+      // Timeout to reset overlay if no updates
+      setInterval(() => {
+        if (Date.now() - lastUpdate > 2000 && faceDetected) {
+          console.log("No face updates for 2s, resetting");
+          faceDetected = false;
+          debugOverlay.style.backgroundColor = 'rgba(255, 0, 0, 0.5)';
+          if (lep) {
+            lep.setScale(originalScale);
+            lep.position.x = 0;
+            console.log("Reset scale:", originalScale, "Position x:", lep.position.x);
+          }
+        }
+      }, 1000);
 
       const video = document.getElementById('video');
       const camera = new window.Camera(video, {
