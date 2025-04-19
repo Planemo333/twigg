@@ -54,11 +54,11 @@
       faces.setOptions({
         maxNumFaces: 1,
         refineLandmarks: false,
-        minDetectionConfidence: 0.3,
+        minDetectionConfidence: 0.2, // Lowered for easier detection
         minTrackingConfidence: 0.5
       });
 
-      let isClose = false;
+      let faceDetected = false;
       const debugOverlay = document.getElementById('debug-overlay');
       let originalScale = { x: 1, y: 1, z: 1 }; // Adjust if lep's default scale differs
 
@@ -68,40 +68,19 @@
           return;
         }
 
-        if (!results.multiFaceLandmarks[0]) {
-          console.log("No face detected");
-          debugOverlay.style.backgroundColor = 'rgba(255, 0, 0, 0.5)';
-          if (isClose) {
-            isClose = false;
-            lep.setScale(originalScale);
-            lep.position.x = 0; // Reset position
-            console.log("Restored scale:", originalScale, "Position x:", lep.position.x);
-          }
-          return;
-        }
+        const isFaceDetected = !!results.multiFaceLandmarks[0];
+        console.log("Face detected:", isFaceDetected);
+        console.log("Setting overlay color:", isFaceDetected ? "green" : "red");
+        debugOverlay.style.backgroundColor = isFaceDetected ? 'rgba(0, 255, 0, 0.5)' : 'rgba(255, 0, 0, 0.5)';
 
-        console.log("Face detected");
-        const landmarks = results.multiFaceLandmarks[0];
-        const leftEye = landmarks[33]; // Left eye outer
-        const rightEye = landmarks[263]; // Right eye outer
-        const faceWidth = Math.abs(rightEye.x - leftEye.x);
-        console.log(`Face width: ${faceWidth.toFixed(2)}`);
-
-        const isFaceClose = faceWidth > 0.25; // Lowered threshold
-        console.log("Face is close:", isFaceClose);
-        console.log("Setting overlay color:", isFaceClose ? "green" : "red");
-        debugOverlay.style.backgroundColor = isFaceClose ? 'rgba(0, 255, 0, 0.5)' : 'rgba(255, 0, 0, 0.5)';
-
-        if (isFaceClose !== isClose) {
-          isClose = isFaceClose;
-          if (isClose) {
-            lep.setScale({ x: 0, y: 0, z: 0 });
-            lep.position.x = 100; // Test position change
-            console.log("Set scale: { x: 0, y: 0, z: 0 }, Position x:", lep.position.x);
+        if (isFaceDetected !== faceDetected) {
+          faceDetected = isFaceDetected;
+          if (faceDetected) {
+            lep.setScale({ x: 0.2, y: 0.2, z: 0.2 });
+            console.log("Set scale: { x: 0.2, y: 0.2, z: 0.2 }");
           } else {
             lep.setScale(originalScale);
-            lep.position.x = 0;
-            console.log("Restored scale:", originalScale, "Position x:", lep.position.x);
+            console.log("Restored scale:", originalScale);
           }
           console.log("Current lep scale:", lep.scale);
         }
