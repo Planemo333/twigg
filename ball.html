@@ -51,12 +51,12 @@
         locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${file}` // Load Face Mesh WASM files
       });
 
-      // Configure Face Mesh settings for optimal detection
+      // Configure Face Mesh settings for improved peripheral and sideways detection
       faces.setOptions({
-        maxNumFaces: 1, // Detect only one face to save resources
-        refineLandmarks: false, // Disable landmark refinement for speed
-        minDetectionConfidence: 0.01, // Low threshold for easier detection
-        minTrackingConfidence: 0.01 // Low threshold for reliable tracking
+        maxNumFaces: 2, // Allow detection of up to 2 faces in the frame
+        refineLandmarks: true, // Enable landmark refinement for better angle detection
+        minDetectionConfidence: 0.01, // Lowered for maximum sensitivity in peripheral areas
+        minTrackingConfidence: 0.01 // Lowered for reliable tracking of sideways faces
       });
 
       let isFaceDetected = false; // Track face detection state
@@ -66,11 +66,25 @@
 
       // Handle Face Mesh detection results
       faces.onResults((results) => {
-        // Check if a face is detected based on landmark presence
+        // Check if at least one face is detected
         const facePresent = !!results.multiFaceLandmarks[0];
         // Update overlay color: green for face detected, red for no face
         overlay.style.backgroundColor = facePresent ? 'rgba(0, 255, 0, 0.5)' : 'rgba(255, 0, 0, 0.5)';
         lastUpdate = Date.now(); // Update timestamp on detection
+
+        // Debug face position and orientation (for peripheral and sideways detection)
+        if (facePresent) {
+          const landmarks = results.multiFaceLandmarks[0];
+          // Calculate face center X position (normalized 0 to 1)
+          const faceCenterX = landmarks.reduce((sum, point) => sum + point.x, 0) / landmarks.length;
+          console.log("Face position (x):", faceCenterX, faceCenterX < 0.3 || faceCenterX > 0.7 ? "Peripheral" : "Center");
+
+          // Estimate face yaw (sideways angle) using landmarks for left eye (468) and right eye (473)
+          const leftEye = landmarks[468]; // Left eye outer corner
+          const rightEye = landmarks[473]; // Right eye outer corner
+          const yawEstimate = Math.atan2(rightEye.y - leftEye.y, rightEye.x - leftEye.x) * (180 / Math.PI);
+          console.log("Face yaw (degrees):", yawEstimate, Math.abs(yawEstimate) > 20 ? "Sideways" : "Frontal");
+        }
 
         // Update trigger position only if detection state changes
         if (facePresent !== isFaceDetected) {
