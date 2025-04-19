@@ -3,135 +3,125 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Face-Controlled Spline</title>
+  <title>Face-Controlled Spline Scene</title>
   <script type="module">
     import { Application } from 'https://unpkg.com/@splinetool/runtime@1.9.82/build/runtime.js';
 
-    window.onload = async () => {
-      // Initialize Spline
+    let splineApp;
+    let lep;
+
+    async function initSpline() {
       const canvas = document.getElementById('spline-canvas');
-      const app = new Application(canvas);
+      splineApp = new Application(canvas);
       try {
-        await app.load('https://prod.spline.design/abU-ltf0N5uCFYyP/scene.splinecode');
+        await splineApp.load('https://prod.spline.design/abU-ltf0N5uCFYyP/scene.splinecode');
         console.log("Spline scene loaded successfully");
-        const lep = app.findObjectByName('lep');
-        console.log("Lep object found:", lep ? "Yes" : "No");
-        console.log("All objects in scene:", app.getAllObjects().map(obj => obj.name));
+        lep = splineApp.findObjectByName('lep');
+        console.log("Lep object found:", lep ? "Yes" : "No, lep is undefined");
+        console.log("All objects in scene:", splineApp.getAllObjects().map(obj => obj.name));
       } catch (err) {
         console.error("Failed to load Spline scene:", err);
-        return;
       }
+    }
 
-      // Request camera access
+    async function requestCameraPermissions() {
       try {
         const stream = await navigator.mediaDevices.getUserMedia({
-          video: { 
-            width: { ideal: 640 }, 
-            height: { ideal: 480 }, 
-            aspectRatio: { ideal: 480/640 }, 
+          video: {
+            width: { ideal: 640 },
+            height: { ideal: 480 },
+            aspectRatio: { ideal: 480/640 },
             frameRate: { ideal: 15 },
-            facingMode: "user" // Ensure front-facing camera
+            facingMode: "user"
           }
         });
         document.getElementById('video').srcObject = stream;
         console.log("Camera access granted");
       } catch (err) {
-        console.error("Camera access failed:", err);
-        alert("Camera access required for face tracking.");
-        return;
+        console.error("Camera access denied:", err);
+        alert("Please enable camera access for face tracking to work.");
       }
+    }
 
-      // Initialize face tracking
-      const faceMesh = new window.FaceMesh({
-        locateFile: file => `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${file}`
+    function initFaceTracking() {
+      const faces = new window.FaceMesh({
+        locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${file}`
       });
-      faceMesh.setOptions({
+
+      faces.setOptions({
         maxNumFaces: 1,
         refineLandmarks: false,
-        minDetectionConfidence: 0.5,
+        minDetectionConfidence: 0.3,
         minTrackingConfidence: 0.5
       });
 
-      let isLooking = false;
-      let stateTimeout = null;
+      let isClose = false;
       const debugOverlay = document.getElementById('debug-overlay');
+      let originalScale = { x: 1, y: 1, z: 1 }; // Adjust if lep's default scale differs
 
-      faceMesh.onResults(results => {
-        if (!results.multiFaceLandmarks[0]) {
-          console.log("No face detected");
-          debugOverlay.style.backgroundColor = 'rgba(255, 0, 0, 0.5)'; // Red when no face
-          return;
-        }
-        console.log("Face detected");
-
-        const lep = app.findObjectByName('lep');
+      faces.onResults((results) => {
         if (!lep) {
           console.log("Lep object not found");
           return;
         }
 
-        // Log raw landmarks
+        if (!results.multiFaceLandmarks[0]) {
+          console.log("No face detected");
+          debugOverlay.style.backgroundColor = 'rgba(255, 0, 0, 0.5)';
+          if (isClose) {
+            isClose = false;
+            lep.setScale(originalScale);
+            console.log("Restored scale:", originalScale);
+          }
+          return;
+        }
+
+        console.log("Face detected");
         const landmarks = results.multiFaceLandmarks[0];
-        const nose = landmarks[1]; // Nose tip
         const leftEye = landmarks[33]; // Left eye outer
         const rightEye = landmarks[263]; // Right eye outer
-        console.log("Raw landmarks:", {
-          nose: { x: nose.x.toFixed(2), y: nose.y.toFixed(2), z: nose.z.toFixed(2) },
-          leftEye: { x: leftEye.x.toFixed(2), y: leftEye.y.toFixed(2), z: leftEye.z.toFixed(2) },
-          rightEye: { x: rightEye.x.toFixed(2), y: rightEye.y.toFixed(2), z: rightEye.z.toFixed(2) }
-        });
+        const faceWidth = Math.abs(rightEye.x - leftEye.x);
+        console.log(`Face width: ${faceWidth.toFixed(2)}`);
 
-        // Estimate head orientation (yaw/pitch)
-        const yaw = Math.atan2(rightEye.y - leftEye.y, rightEye.x - leftEye.x) * (180 / Math.PI);
-        const pitch = Math.atan2(nose.z - (leftEye.z + rightEye.z) / 2, nose.y - (leftEye.y + rightEye.y) / 2) * (180 / Math.PI);
-        console.log(`Yaw: ${yaw.toFixed(2)}°, Pitch: ${pitch.toFixed(2)}°`);
+        const isFaceClose = faceWidth > 0.3; // Threshold for "close"
+        console.log("Face is close:", isFaceClose);
+        debugOverlay.style.backgroundColor = isFaceClose ? 'rgba(0, 255, 0, 0.5)' : 'rgba(255, 0, 0, 0.5)';
 
-        // Check if looking at screen (±15° for wider range)
-        const lookingAtScreen = Math.abs(yaw) < 15 && Math.abs(pitch) < 15;
-        console.log("Looking at screen:", lookingAtScreen);
-        debugOverlay.style.backgroundColor = lookingAtScreen ? 'rgba(0, 255, 0, 0.5)' : 'rgba(255, 0, 0, 0.5)';
-
-        // Update Spline state only on change
-        if (lookingAtScreen !== isLooking) {
-          isLooking = lookingAtScreen;
-          clearTimeout(stateTimeout);
-          console.log("State change triggered:", isLooking ? "Looking" : "Not looking");
-
-          if (isLooking) {
-            // Trigger state sequence: Base State -> State -> State 2
-            lep.setState('Base State');
-            console.log("Set state: Base State");
-            stateTimeout = setTimeout(() => {
-              lep.setState('State');
-              console.log("Set state: State");
-              stateTimeout = setTimeout(() => {
-                lep.setState('State 2');
-                console.log("Set state: State 2");
-              }, 200);
-            }, 200);
+        if (isFaceClose !== isClose) {
+          isClose = isFaceClose;
+          if (isClose) {
+            lep.setScale({ x: 0, y: 0, z: 0 });
+            console.log("Set scale: { x: 0, y: 0, z: 0 }");
           } else {
-            // Revert to Base State
-            lep.setState('Base State');
-            console.log("Set state: Base State (revert)");
+            lep.setScale(originalScale);
+            console.log("Restored scale:", originalScale);
           }
         }
       });
 
-      // Start camera
       const video = document.getElementById('video');
       const camera = new window.Camera(video, {
-        onFrame: async () => await faceMesh.send({ image: video }),
+        onFrame: async () => await faces.send({ image: video }),
         width: 640,
         height: 480
       });
-      camera.start().then(() => console.log("Camera started")).catch(err => console.error("Camera start failed:", err));
+
+      camera.start()
+        .then(() => console.log("Camera started"))
+        .catch((err) => console.error("Camera failed:", err));
+    }
+
+    window.onload = async function () {
+      await requestCameraPermissions();
+      await initSpline();
+      initFaceTracking();
     };
   </script>
   <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/face_mesh.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
   <style>
     body { margin: 0; overflow: hidden; display: flex; justify-content: center; align-items: center; height: 100vh; }
-    #spline-canvas { width: 100%; height: 100%; }
+    #spline-canvas { width: 100%; height: 100%; display: block; }
     #video { display: none; transform: rotate(-90deg); width: 480px; height: 640px; }
     #debug-overlay { 
       position: absolute; 
