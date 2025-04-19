@@ -53,10 +53,10 @@
 
       // Configure Face Mesh settings for optimal detection
       faces.setOptions({
-        maxNumFaces: 1, // Detect only one face to save resources
+        maxNumFaces: 5, // Detect only one face to save resources
         refineLandmarks: false, // Disable landmark refinement for speed
-        minDetectionConfidence: 0.1, // Low threshold for easier detection
-        minTrackingConfidence: 0.1 // Low threshold for reliable tracking
+        minDetectionConfidence: 0.001, // Low threshold for easier detection
+        minTrackingConfidence: 0.001 // Low threshold for reliable tracking
       });
 
       let isFaceDetected = false; // Track face detection state
