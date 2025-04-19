@@ -55,8 +55,8 @@
       faces.setOptions({
         maxNumFaces: 1, // Detect only one face to save resources
         refineLandmarks: false, // Disable landmark refinement for speed
-        minDetectionConfidence: 0.1, // Low threshold for easier detection
-        minTrackingConfidence: 0.1 // Low threshold for reliable tracking
+        minDetectionConfidence: 0.01, // Low threshold for easier detection
+        minTrackingConfidence: 0.01 // Low threshold for reliable tracking
       });
 
       let isFaceDetected = false; // Track face detection state
