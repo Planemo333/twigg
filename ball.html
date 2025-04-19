@@ -27,13 +27,13 @@
 
     async function initCamera() {
       try {
-        // Request camera access with higher resolution for better detection at 4 meters
+        // Request camera access with optimized settings for performance
         const stream = await navigator.mediaDevices.getUserMedia({
           video: {
-            width: { ideal: 640 }, // Increased resolution to capture more detail
-            height: { ideal: 480 },
-            aspectRatio: { ideal: 480/640 }, // Maintain aspect ratio
-            frameRate: { ideal: 10 }, // Reduced frame rate to balance performance
+            width: { ideal: 320 }, // Low resolution to reduce CPU load
+            height: { ideal: 240 },
+            aspectRatio: { ideal: 240/320 }, // Maintain aspect ratio
+            frameRate: { ideal: 15 }, // Limit frame rate for efficiency
             facingMode: "user" // Use front-facing camera
           }
         });
@@ -51,12 +51,12 @@
         locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${file}` // Load Face Mesh WASM files
       });
 
-      // Configure Face Mesh settings for detection up to 4 meters
+      // Configure Face Mesh settings for optimal detection
       faces.setOptions({
-        maxNumFaces: 2, // Allow detection of up to 2 faces in the frame
-        refineLandmarks: true, // Enable landmark refinement for better accuracy
-        minDetectionConfidence: 0.005, // Lowered for maximum sensitivity at 4 meters
-        minTrackingConfidence: 0.005 // Lowered for reliable tracking at 4 meters
+        maxNumFaces: 1, // Detect only one face to save resources
+        refineLandmarks: false, // Disable landmark refinement for speed
+        minDetectionConfidence: 0.1, // Low threshold for easier detection
+        minTrackingConfidence: 0.1 // Low threshold for reliable tracking
       });
 
       let isFaceDetected = false; // Track face detection state
@@ -66,25 +66,11 @@
 
       // Handle Face Mesh detection results
       faces.onResults((results) => {
-        // Check if at least one face is detected
+        // Check if a face is detected based on landmark presence
         const facePresent = !!results.multiFaceLandmarks[0];
         // Update overlay color: green for face detected, red for no face
         overlay.style.backgroundColor = facePresent ? 'rgba(0, 255, 0, 0.5)' : 'rgba(255, 0, 0, 0.5)';
         lastUpdate = Date.now(); // Update timestamp on detection
-
-        // Debug face position and orientation (for peripheral and sideways detection)
-        if (facePresent) {
-          const landmarks = results.multiFaceLandmarks[0];
-          // Calculate face center X position (normalized 0 to 1)
-          const faceCenterX = landmarks.reduce((sum, point) => sum + point.x, 0) / landmarks.length;
-          console.log("Face position (x):", faceCenterX, faceCenterX < 0.3 || faceCenterX > 0.7 ? "Peripheral" : "Center");
-
-          // Estimate face yaw (sideways angle) using landmarks for left eye (468) and right eye (473)
-          const leftEye = landmarks[468]; // Left eye outer corner
-          const rightEye = landmarks[473]; // Right eye outer corner
-          const yawEstimate = Math.atan2(rightEye.y - leftEye.y, rightEye.x - leftEye.x) * (180 / Math.PI);
-          console.log("Face yaw (degrees):", yawEstimate, Math.abs(yawEstimate) > 20 ? "Sideways" : "Frontal");
-        }
 
         // Update trigger position only if detection state changes
         if (facePresent !== isFaceDetected) {
@@ -99,8 +85,8 @@
       const video = document.getElementById('video');
       camera = new window.Camera(video, {
         onFrame: async () => await faces.send({ image: video }), // Send video frames to Face Mesh
-        width: 640, // Match increased video resolution
-        height: 480
+        width: 320, // Match video resolution
+        height: 240
       });
 
       // Start the camera feed
@@ -134,7 +120,7 @@
     /* Ensure Spline canvas fills the viewport */
     #spline-canvas { width: 100%; height: 100%; display: block; }
     /* Hide video feed, apply rotation for portrait monitor */
-    #video { display: none; transform: rotate(-90deg); width: 480px; height: 640px; }
+    #video { display: none; transform: rotate(-90deg); width: 240px; height: 320px; }
     /* Style debug overlay: semi-transparent square at top-left */
     #debug-overlay { 
       position: absolute; 
