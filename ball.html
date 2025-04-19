@@ -1,133 +1,127 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Face-Controlled Spline Scene</title>
+  <meta charset="UTF-8"> <!-- Set character encoding for proper text rendering -->
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"> <!-- Ensure responsive scaling on devices -->
+  <title>Face-Controlled Spline Scene</title> <!-- Page title for browser tab -->
   <script type="module">
+    // Import Spline Runtime for 3D scene manipulation
     import { Application } from 'https://unpkg.com/@splinetool/runtime@1.9.82/build/runtime.js?t=20250419';
 
-    console.log("Code Version: 20250419 - Using trigger.position.y");
-
-    let splineApp;
-    let trigger;
+    let app; // Spline Application instance for scene control
+    let trigger; // Reference to the 'trigger' object in the Spline scene
 
     async function initSpline() {
+      // Get the canvas element for rendering the Spline scene
       const canvas = document.getElementById('spline-canvas');
-      splineApp = new Application(canvas);
+      app = new Application(canvas); // Initialize Spline app with canvas
       try {
-        await splineApp.load('https://prod.spline.design/abU-ltf0N5uCFYyP/scene.splinecode');
-        console.log("Spline scene loaded successfully");
-        trigger = splineApp.findObjectByName('trigger');
-        console.log("Trigger object found:", trigger ? "Yes" : "No, trigger is undefined");
-        console.log("All objects in scene:", splineApp.getAllObjects().map(obj => obj.name));
-        if (trigger) {
-          console.log("Initial trigger position:", trigger.position);
-        }
+        // Load the Spline scene from the provided URL
+        await app.load('https://prod.spline.design/abU-ltf0N5uCFYyP/scene.splinecode');
+        trigger = app.findObjectByName('trigger'); // Find the 'trigger' object in the scene
+        if (!trigger) console.error("Trigger object not found"); // Log error if 'trigger' is missing
       } catch (err) {
-        console.error("Failed to load Spline scene:", err);
+        console.error("Failed to load Spline scene:", err); // Log any errors during scene loading
       }
     }
 
-    async function requestCameraPermissions() {
+    async function initCamera() {
       try {
+        // Request camera access with optimized settings for performance
         const stream = await navigator.mediaDevices.getUserMedia({
           video: {
-            width: { ideal: 320 },
+            width: { ideal: 320 }, // Low resolution to reduce CPU load
             height: { ideal: 240 },
-            aspectRatio: { ideal: 240/320 },
-            frameRate: { ideal: 15 },
-            facingMode: "user"
+            aspectRatio: { ideal: 240/320 }, // Maintain aspect ratio
+            frameRate: { ideal: 15 }, // Limit frame rate for efficiency
+            facingMode: "user" // Use front-facing camera
           }
         });
+        // Set the video element's source to the camera stream
         document.getElementById('video').srcObject = stream;
-        console.log("Camera access granted");
       } catch (err) {
-        console.error("Camera access denied:", err);
-        alert("Please enable camera access for face tracking to work.");
+        console.error("Camera access denied:", err); // Log camera access errors
+        alert("Please enable camera access for face tracking."); // Notify user if camera access fails
       }
     }
 
     function initFaceTracking() {
+      // Initialize MediaPipe Face Mesh for face detection
       const faces = new window.FaceMesh({
-        locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${file}`
+        locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${file}` // Load Face Mesh WASM files
       });
 
+      // Configure Face Mesh settings for optimal detection
       faces.setOptions({
-        maxNumFaces: 1,
-        refineLandmarks: false,
-        minDetectionConfidence: 0.1,
-        minTrackingConfidence: 0.1
+        maxNumFaces: 1, // Detect only one face to save resources
+        refineLandmarks: false, // Disable landmark refinement for speed
+        minDetectionConfidence: 0.1, // Low threshold for easier detection
+        minTrackingConfidence: 0.1 // Low threshold for reliable tracking
       });
 
-      let faceDetected = false;
-      let lastUpdate = Date.now();
-      const debugOverlay = document.getElementById('debug-overlay');
-      let camera;
+      let isFaceDetected = false; // Track face detection state
+      let lastUpdate = Date.now(); // Timestamp for last detection update
+      const overlay = document.getElementById('debug-overlay'); // Debug overlay element
+      let camera; // Camera instance for video feed
 
+      // Handle Face Mesh detection results
       faces.onResults((results) => {
-        if (!trigger) {
-          console.log("Trigger object not found");
-          return;
-        }
+        // Check if a face is detected based on landmark presence
+        const facePresent = !!results.multiFaceLandmarks[0];
+        // Update overlay color: green for face detected, red for no face
+        overlay.style.backgroundColor = facePresent ? 'rgba(0, 255, 0, 0.5)' : 'rgba(255, 0, 0, 0.5)';
+        lastUpdate = Date.now(); // Update timestamp on detection
 
-        const isFaceDetected = !!results.multiFaceLandmarks[0];
-        console.log("Face detected:", isFaceDetected, "Landmarks:", results.multiFaceLandmarks[0] ? "Present" : "Absent");
-        console.log("Setting overlay color:", isFaceDetected ? "green" : "red");
-        debugOverlay.style.backgroundColor = isFaceDetected ? 'rgba(0, 255, 0, 0.5)' : 'rgba(255, 0, 0, 0.5)';
-        lastUpdate = Date.now();
-
-        if (isFaceDetected !== faceDetected) {
-          faceDetected = isFaceDetected;
-          if (faceDetected) {
-            trigger.position.y = 900;
-            console.log("Set trigger position y:", trigger.position.y);
-          } else {
-            trigger.position.y = 0;
-            console.log("Restored trigger position y:", trigger.position.y);
-          }
-          console.log("Current trigger position:", trigger.position);
+        // Update trigger position only if detection state changes
+        if (facePresent !== isFaceDetected) {
+          isFaceDetected = facePresent;
+          if (!trigger) return; // Skip if trigger object isn't found
+          // Move trigger to y = 900 when face is detected, y = 0 when not
+          trigger.position.y = isFaceDetected ? 900 : 0;
         }
       });
 
+      // Initialize camera with video feed for Face Mesh
       const video = document.getElementById('video');
       camera = new window.Camera(video, {
-        onFrame: async () => await faces.send({ image: video }),
-        width: 320,
+        onFrame: async () => await faces.send({ image: video }), // Send video frames to Face Mesh
+        width: 320, // Match video resolution
         height: 240
       });
 
-      camera.start()
-        .then(() => console.log("Camera started"))
-        .catch((err) => console.error("Camera failed:", err));
+      // Start the camera feed
+      camera.start().catch((err) => console.error("Camera failed:", err));
 
+      // Reset detection state if no updates for 1 second
       setInterval(() => {
-        if (Date.now() - lastUpdate > 1000 && faceDetected) {
-          console.log("No face updates for 1s, resetting");
-          faceDetected = false;
-          debugOverlay.style.backgroundColor = 'rgba(255, 0, 0, 0.5)';
-          if (trigger) {
-            trigger.position.y = 0;
-            console.log("Reset trigger position y:", trigger.position.y);
-          }
-          camera.stop();
-          camera.start();
+        if (Date.now() - lastUpdate > 1000 && isFaceDetected) {
+          isFaceDetected = false; // Reset face detection state
+          overlay.style.backgroundColor = 'rgba(255, 0, 0, 0.5)'; // Set overlay to red
+          if (trigger) trigger.position.y = 0; // Reset trigger position
+          camera.stop(); // Stop camera to force refresh
+          camera.start(); // Restart camera
         }
-      }, 500);
+      }, 500); // Check every 500ms
     }
 
+    // Initialize everything on page load
     window.onload = async function () {
-      await requestCameraPermissions();
-      await initSpline();
-      initFaceTracking();
+      await initCamera(); // Start camera first
+      await initSpline(); // Load Spline scene
+      initFaceTracking(); // Start face tracking
     };
   </script>
+  <!-- Load MediaPipe Face Mesh and Camera Utils scripts -->
   <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/face_mesh.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
   <style>
+    /* Remove default margins and hide overflow for full-screen canvas */
     body { margin: 0; overflow: hidden; display: flex; justify-content: center; align-items: center; height: 100vh; }
+    /* Ensure Spline canvas fills the viewport */
     #spline-canvas { width: 100%; height: 100%; display: block; }
+    /* Hide video feed, apply rotation for portrait monitor */
     #video { display: none; transform: rotate(-90deg); width: 240px; height: 320px; }
+    /* Style debug overlay: semi-transparent square at top-left */
     #debug-overlay { 
       position: absolute; 
       top: 10px; 
@@ -140,8 +134,8 @@
   </style>
 </head>
 <body>
-  <canvas id="spline-canvas"></canvas>
-  <video id="video" autoplay playsinline></video>
-  <div id="debug-overlay"></div>
+  <canvas id="spline-canvas"></canvas> <!-- Canvas for Spline scene -->
+  <video id="video" autoplay playsinline></video> <!-- Hidden video for camera feed -->
+  <div id="debug-overlay"></div> <!-- Debug overlay for face detection status -->
 </body>
 </html>
