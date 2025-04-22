@@ -55,14 +55,13 @@
 
       hands.onResults((results) => {
         const count = countRaisedFingers(results.multiHandLandmarks);
-        // Update overlay color for debugging
         if (count >= 1 && count <= 3) {
           overlay.style.backgroundColor = 'rgba(0, 255, 0, 0.5)';
+          console.log(`Detected ${count} fingers`);
         } else {
           overlay.style.backgroundColor = 'rgba(255, 0, 0, 0.5)';
         }
 
-        // Only process gestures if no video is playing
         if (!isVideoPlaying && count >= 1 && count <= 3) {
           let videoSrc;
           if (count === 1) {
@@ -72,18 +71,18 @@
           } else if (count === 3) {
             videoSrc = 'https://planemo333.github.io/twigg/Maru_video_3.mov';
           }
+          console.log(`Playing video: ${videoSrc}`);
           playbackVideo.src = videoSrc;
           playbackVideo.style.display = 'block';
-          playbackVideo.play();
+          playbackVideo.play().catch(err => console.error("Video play failed:", err));
           isVideoPlaying = true;
         }
       });
 
       function countRaisedFingers(handLandmarks) {
         if (!handLandmarks || handLandmarks.length === 0) return 0;
-        const landmarks = handLandmarks[0]; // Process the first detected hand
+        const landmarks = handLandmarks[0];
         let count = 0;
-        // Check if each finger's tip is above its PIP joint (y decreases upwards)
         if (landmarks[8].y < landmarks[6].y) count++;  // Index finger
         if (landmarks[12].y < landmarks[10].y) count++; // Middle finger
         if (landmarks[16].y < landmarks[14].y) count++; // Ring finger
@@ -105,9 +104,9 @@
       camera.start().catch((err) => console.error("Camera failed:", err));
 
       playbackVideo.addEventListener('ended', () => {
+        console.log("Video ended");
         isVideoPlaying = false;
         playbackVideo.style.display = 'none';
-        // Reset src to ensure video stops and is ready for next play
         playbackVideo.src = '';
       });
     }
@@ -140,6 +139,6 @@
   <canvas id="spline-canvas"></canvas>
   <video id="video" autoplay playsinline></video>
   <div id="debug-overlay"></div>
-  <video id="playback-video"></video>
+  <video id="playback-video" autoplay></video>
 </body>
 </html>
