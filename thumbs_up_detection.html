@@ -1,109 +1,86 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8"> <!-- Set character encoding for proper text rendering -->
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"> <!-- Ensure responsive scaling on devices -->
-  <title>Thumbs-Up Controlled Spline Scene</title> <!-- Page title -->
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Thumbs-Up Controlled Video Playback</title>
   <script type="module">
-    // Import Spline Runtime for 3D scene manipulation
     import { Application } from 'https://unpkg.com/@splinetool/runtime@1.9.82/build/runtime.js?t=20250419';
 
-    let app; // Spline Application instance for scene control
-    let trigger; // Reference to the 'trigger' object in the Spline scene
+    let app;
 
     async function initSpline() {
-      // Get the canvas element for rendering the Spline scene
       const canvas = document.getElementById('spline-canvas');
-      app = new Application(canvas); // Initialize Spline app with canvas
+      app = new Application(canvas);
       try {
-        // Load the Spline scene from the provided URL
         await app.load('https://prod.spline.design/2XI2IrbhcltB1Fpo/scene.splinecode');
-        trigger = app.findObjectByName('trigger'); // Find the 'trigger' object in the scene
-        if (!trigger) console.error("Trigger object not found"); // Log error if 'trigger' is missing
       } catch (err) {
-        console.error("Failed to load Spline scene:", err); // Log any errors during scene loading
+        console.error("Failed to load Spline scene:", err);
       }
     }
 
     async function initCamera() {
       try {
-        // Request camera access with optimized settings for performance
         const stream = await navigator.mediaDevices.getUserMedia({
           video: {
-            width: { ideal: 320 }, // Low resolution to reduce CPU load
+            width: { ideal: 320 },
             height: { ideal: 240 },
-            aspectRatio: { ideal: 240/320 }, // Maintain aspect ratio
-            frameRate: { ideal: 15 }, // Limit frame rate for efficiency
-            facingMode: "ユーザー" // Use front-facing camera
+            aspectRatio: { ideal: 240/320 },
+            frameRate: { ideal: 15 },
+            facingMode: "user"
           }
         });
-        // Set the video element's source to the camera stream
         document.getElementById('video').srcObject = stream;
       } catch (err) {
-        console.error("Camera access denied:", err); // Log camera access errors
-        alert("Please enable camera access for thumbs-up detection."); // Notify user if camera access fails
+        console.error("Camera access denied:", err);
+        alert("Please enable camera access for thumbs-up detection.");
       }
     }
 
     function initHandTracking() {
-      // Initialize MediaPipe Hands for hand detection
       const hands = new window.Hands({
-        locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}` // Load Hands WASM files
+        locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`
       });
 
-      // Configure Hands settings for optimal detection
       hands.setOptions({
-        maxNumHands: 2, // Detect up to two hands
-        modelComplexity: 1, // Use full model for better accuracy
-        minDetectionConfidence: 0.5, // Moderate threshold for detection
-        minTrackingConfidence: 0.5 // Moderate threshold for tracking
+        maxNumHands: 2,
+        modelComplexity: 1,
+        minDetectionConfidence: 0.5,
+        minTrackingConfidence: 0.5
       });
 
-      let isThumbsUpDetected = false; // Track thumbs-up detection state
-      let lastUpdate = Date.now(); // Timestamp for last detection update
-      const overlay = document.getElementById('debug-overlay'); // Debug overlay element
-      let camera; // Camera instance for video feed
+      const overlay = document.getElementById('debug-overlay');
+      const playbackVideo = document.getElementById('playback-video');
+      let isVideoPlaying = false;
 
-      // Handle Hands detection results
       hands.onResults((results) => {
-        // Check if a thumbs-up is detected
         const thumbsUpPresent = detectThumbsUp(results.multiHandLandmarks);
-        // Update overlay color: green for thumbs-up detected, red for no thumbs-up
         overlay.style.backgroundColor = thumbsUpPresent ? 'rgba(0, 255, 0, 0.5)' : 'rgba(255, 0, 0, 0.5)';
-        lastUpdate = Date.now(); // Update timestamp on detection
-
-        // Update trigger position only if detection state changes
-        if (thumbsUpPresent !== isThumbsUpDetected) {
-          isThumbsUpDetected = thumbsUpPresent;
-          if (!trigger) return; // Skip if trigger object isn't found
-          // Move trigger to z = 0 when thumbs-up is detected, z = 500 when not
-          trigger.position.z = isThumbsUpDetected ? 0 : 500;
+        
+        if (thumbsUpPresent && !isVideoPlaying) {
+          isVideoPlaying = true;
+          playbackVideo.style.display = 'block';
+          playbackVideo.play();
         }
       });
 
-      // Function to detect thumbs-up gesture
       function detectThumbsUp(handLandmarks) {
         if (!handLandmarks || handLandmarks.length === 0) return false;
 
         for (const landmarks of handLandmarks) {
-          // Landmark indices for key points
-          const thumbTip = landmarks[4]; // Thumb tip
-          const thumbIP = landmarks[3]; // Thumb interphalangeal joint
-          const indexTip = landmarks[8]; // Index finger tip
-          const middleTip = landmarks[12]; // Middle finger tip
-          const ringTip = landmarks[16]; // Ring finger tip
-          const pinkyTip = landmarks[20]; // Pinky finger tip
+          const thumbTip = landmarks[4];
+          const thumbIP = landmarks[3];
+          const indexTip = landmarks[8];
+          const middleTip = landmarks[12];
+          const ringTip = landmarks[16];
+          const pinkyTip = landmarks[20];
 
-          // Check if thumb is extended (thumb tip higher than thumb IP)
           const isThumbUp = thumbTip.y < thumbIP.y;
-
-          // Check if other fingers are folded (tips below their respective MCP joints)
           const isIndexFolded = indexTip.y > landmarks[5].y;
           const isMiddleFolded = middleTip.y > landmarks[9].y;
           const isRingFolded = ringTip.y > landmarks[13].y;
           const isPinkyFolded = pinkyTip.y > landmarks[17].y;
 
-          // Thumbs-up: thumb extended, other fingers folded
           if (isThumbUp && isIndexFolded && isMiddleFolded && isRingFolded && isPinkyFolded) {
             return true;
           }
@@ -111,47 +88,37 @@
         return false;
       }
 
-      // Initialize camera with video feed for Hands
       const video = document.getElementById('video');
-      camera = new window.Camera(video, {
-        onFrame: async () => await hands.send({ image: video }), // Send video frames to Hands
-        width: 320, // Match video resolution
+      const camera = new window.Camera(video, {
+        onFrame: async () => {
+          if (!isVideoPlaying) {
+            await hands.send({ image: video });
+          }
+        },
+        width: 320,
         height: 240
       });
 
-      // Start the camera feed
       camera.start().catch((err) => console.error("Camera failed:", err));
 
-      // Reset detection state if no updates for 1 second
-      setInterval(() => {
-        if (Date.now() - lastUpdate > 1000 && isThumbsUpDetected) {
-          isThumbsUpDetected = false; // Reset thumbs-up detection state
-          overlay.style.backgroundColor = 'rgba(255, 0, 0, 0.5)'; // Set overlay to red
-          if (trigger) trigger.position.z = 500; // Reset trigger position to z = 500
-          camera.stop(); // Stop camera to force refresh
-          camera.start(); // Restart camera
-        }
-      }, 500); // Check every 500ms
+      playbackVideo.addEventListener('ended', () => {
+        isVideoPlaying = false;
+        playbackVideo.style.display = 'none';
+      });
     }
 
-    // Initialize everything on page load
     window.onload = async function () {
-      await initCamera(); // Start camera first
-      await initSpline(); // Load Spline scene
-      initHandTracking(); // Start hand tracking
+      await initCamera();
+      await initSpline();
+      initHandTracking();
     };
   </script>
-  <!-- Load MediaPipe Hands and Camera Utils scripts -->
   <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
   <style>
-    /* Remove default margins and hide overflow for full-screen canvas */
     body { margin: 0; overflow: hidden; display: flex; justify-content: center; align-items: center; height: 100vh; }
-    /* Ensure Spline canvas fills the viewport */
     #spline-canvas { width: 100%; height: 100%; display: block; }
-    /* Hide video feed, apply rotation for portrait monitor */
     #video { display: none; transform: rotate(-90deg); width: 240px; height: 320px; }
-    /* Style debug overlay: semi-transparent square at top-left */
     #debug-overlay { 
       position: absolute; 
       top: 10px; 
@@ -161,11 +128,13 @@
       pointer-events: none; 
       z-index: 10; 
     }
+    #playback-video { display: none; position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 5; }
   </style>
 </head>
 <body>
-  <canvas id="spline-canvas"></canvas> <!-- Canvas for Spline scene -->
-  <video id="video" autoplay playsinline></video> <!-- Hidden video for camera feed -->
-  <div id="debug-overlay"></div> <!-- Debug overlay for thumbs-up detection status -->
+  <canvas id="spline-canvas"></canvas>
+  <video id="video" autoplay playsinline></video>
+  <div id="debug-overlay"></div>
+  <video id="playback-video" src="https://planemo333.github.io/twigg/Maru_video_2.mp4"></video>
 </body>
 </html>
